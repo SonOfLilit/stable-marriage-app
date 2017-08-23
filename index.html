@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="format-detection" content="telephone=no">
+    <meta name="msapplication-tap-highlight" content="no">
+    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
+    <title>Marriage</title>
+    <script language="javascript" src="Sortable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300" rel="stylesheet" type="text/css"/>
+    <style>
+* {
+  box-sizing: inherit;
+}
+body {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: Roboto;
+  font-weight: 300;
+  background: #F4E3CA;
+}
+#app > div > h1 {
+  display: block;
+  width: 150px;
+  height: 54px;
+  margin: 10px;
+  padding: 3px 15px;
+  font-size: 40px;
+  background: #FF7373;
+}
+#app .content{
+  display: none;
+}
+body.setup #setup .content, body.sort #sort .content, body.result #result .content {
+  display: block;
+  height: calc(100vh - 212px);
+}
+
+.content {
+  overflow-y: scroll;
+}
+
+.form-row {
+  width: 100%;
+  margin: 3px 0;
+  font-size: 32px;
+}
+.form-row input,
+.form-row button {
+  display: block;
+  width: 100%;
+  border: none;
+  font-size: 32px;
+}
+.form-row button {
+  background: #5F9EDF;
+}
+
+.lists {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 32px;
+  line-height: 40px;
+}
+.lists > li {
+  display: block;
+  margin: 5px 0;
+  width: 100%;
+}
+.lists > .label {
+  display: inline-block;
+  margin-top: 8px;
+  margin-left: 10px;
+  height: 34px;
+  padding: 0px 4px;
+  vertical-align: top;
+}
+.list, .list > li {
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+}
+.list {
+  margin-left: 30px;
+  height: 34px;
+  width: calc(100vw - 90px);
+  padding: 3px 4px;
+}
+.list > li {
+  margin: 4px;
+  height: 34px;
+  padding: 0 4px;
+}
+.lists.blue .label, .blue .list > li, .list .blue {
+  background: #5F9EDF;
+}
+.lists.pink .label, .pink .list > li, .list .pink {
+  background: #FF7373;
+}
+
+.stable {
+  width: 100%;
+  background: #96B444;
+  font-size: 40px;
+}
+    </style>
+<script>
+# https://rosettacode.org/wiki/Stable_marriage_problem#JavaScript
+function Person(name) {
+ 
+    var candidateIndex = 0;
+ 
+    this.name = name;
+    this.fiance = null;
+    this.candidates = [];
+ 
+    this.rank = function(p) {
+        for (i = 0; i < this.candidates.length; i++)
+            if (this.candidates[i] === p) return i;
+        return this.candidates.length + 1;
+    }
+ 
+    this.prefers = function(p) {
+        return this.rank(p) < this.rank(this.fiance);
+    }
+ 
+    this.nextCandidate = function() {
+        if (candidateIndex >= this.candidates.length) return null;
+        return this.candidates[candidateIndex++];
+    }
+ 
+    this.engageTo = function(p) {
+        if (p.fiance) p.fiance.fiance = null;
+        p.fiance = this;
+        if (this.fiance) this.fiance.fiance = null;
+        this.fiance = p;
+    }
+ 
+    this.swapWith = function(p) {
+        console.log("%s & %s swap partners", this.name, p.name);
+        var thisFiance = this.fiance;
+        var pFiance = p.fiance;
+        this.engageTo(pFiance);
+        p.engageTo(thisFiance);
+    }
+}
+ 
+function isStable(guys, gals) {
+    for (var i = 0; i < guys.length; i++)
+        for (var j = 0; j < gals.length; j++)
+            if (guys[i].prefers(gals[j]) && gals[j].prefers(guys[i]))
+                return false;
+    return true;
+}
+ 
+function engageEveryone(guys) {
+    var done;
+    do {
+        done = true;
+        for (var i = 0; i < guys.length; i++) {
+            var guy = guys[i];
+            if (!guy.fiance) {
+                done = false;
+                var gal = guy.nextCandidate();
+                if (!gal.fiance || gal.prefers(guy))
+                    guy.engageTo(gal);
+            }
+        }
+    } while (!done);
+}
+
+function storeIndex(evt) {
+  evt.item.parentNode.setAttribute('data-lastindex', evt.newIndex);
+};
+function moveToLastIndex(evt) {
+  var el = evt.target, parent = el.parentNode;
+  var index = parent.getAttribute('data-lastindex');
+  if (index === null) {
+    index = 0;
+  } else {
+    index = (+index) + 1;
+  }
+  parent.insertBefore(el, index === parent.childNodes.length ? null : parent.childNodes[index]);
+  parent.setAttribute('data-lastindex', index);
+  parent.sortable.save();
+};
+
+var localStorageStore = {
+  get: function (sortable) {
+    var order = localStorage.getItem(sortable.options.group.name);
+    return order ? order.split('|') : [];
+  },
+
+  set: function (sortable) {
+    var order = sortable.toArray();
+    localStorage.setItem(sortable.options.group.name, order.join('|'));
+  }
+};
+
+function removeAllChildren(node) {
+  while (node.firstChild) {
+    node.removeChild(node.firstChild);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  document.querySelector('#setup > h1').onclick = function() {
+    document.body.classList = 'setup';
+  }
+  document.getElementById('reset').onclick = function() {
+    if (confirm('Are you sure?')) {
+      localStorage.clear();
+    }
+  }
+  document.querySelector('#sort > h1').onclick = function() {
+    var participants = +document.getElementById('participants').value;
+    if (!(participants > 0 && participants < 100 && participants % 2 === 0)) {
+      alert('There should be an even number of participants, between 2 and 100');
+      return false;
+    }
+    var n = participants / 2;
+    var content = document.querySelector('#sort .content');
+    removeAllChildren(content);
+    var colors = ['blue', 'pink'];
+    for (var i = 0; i < colors.length; i++) {
+      var outer = document.createElement('ul');
+      outer.classList = 'lists ' + colors[i];
+      for (var j = 1; j <= n; j++) {
+        var outerItem = document.createElement('li');
+        var label = document.createElement('span');
+        label.classList = 'label';
+        label.innerHTML = j.toString();
+        outerItem.appendChild(label);
+        var inner = document.createElement('ul');
+        inner.classList = 'list';
+        for (var k = 1; k <= n; k++) {
+          var innerItem = document.createElement('li');
+          innerItem.innerHTML = k.toString();
+          innerItem.setAttribute('data-id', k.toString());
+          innerItem.onclick = moveToLastIndex;
+          inner.appendChild(innerItem);
+        }
+        inner.sortable = Sortable.create(inner, {
+          animation: 150,
+          group: 'group-' + i + '-' + j,
+          store: localStorageStore,
+          onEnd: storeIndex
+        });
+        outerItem.append(inner);
+        outer.appendChild(outerItem);
+      }
+      content.appendChild(outer, 0);
+    }
+    document.body.classList = 'sort';
+  };
+  document.querySelector('#result > h1').onclick = function() {
+    var content = document.querySelector('#sort .content');
+    if (content.children.length === 0) {
+      return false;
+    }
+    var n = content.childNodes[0].childNodes.length;
+    var people = {0: [], 1: []};
+    var colors = ['b', 'p'];
+    for (var i = 0; i < colors.length; i++) {
+      for (var j = 1; j <= n; j++) {
+        people[i].push(new Person(colors[i] + j.toString()));
+      }
+    }
+    for (var i = 0; i < colors.length; i++) {
+      var otherColor = 1 - i;
+      var outer = content.childNodes[i];
+      for (var j = 0; j < n; j++) {
+        var preferences = outer.childNodes[0].childNodes[1];
+        var candidates = [];
+        for (var k = 0; k < n; k++) {
+          candidates.push(people[otherColor][preferences.childNodes[k].getAttribute('data-id') - 1]);
+        }
+        people[i][j].candidates = candidates;
+      }
+    }
+    var chosen = +(Math.random() > .5);
+    engageEveryone(people[chosen]);
+    var content = document.querySelector('#result .content');
+    removeAllChildren(content);
+    var outer = document.createElement('ul');
+    outer.classList = 'lists';
+    for (var i = 0; i < n; i++) {
+      var b = people[0][i].name, p = people[0][i].fiance.name;
+      var outerItem = document.createElement('li');
+      var inner = document.createElement('ul');
+      inner.classList = 'list';
+      var innerItem = document.createElement('li');
+      innerItem.classList = 'blue';
+      innerItem.innerHTML = b.substr(1);
+      inner.append(innerItem);
+      innerItem = document.createElement('li');
+      innerItem.classList = 'pink';
+      innerItem.innerHTML = p.substr(1);
+      inner.append(innerItem);
+      outerItem.append(inner);
+      outer.appendChild(outerItem);
+    }
+    content.appendChild(outer);
+
+    if (isStable(people[0], people[1])) {
+      var stable = document.createElement('div');
+      stable.classList = 'stable';
+      stable.innerHTML = 'Stable';
+      content.appendChild(stable);
+    }
+
+    document.body.classList = 'result';
+  }
+});
+</script>
+  </head>
+  <body class="setup">
+    <div id="app">
+      <div id="setup">
+        <h1>Setup</h1>
+        <div class="content">
+          <div class="form-row">
+            <input type="number" id="participants" value="10" />
+          </div>
+          <div class="form-row">
+            <button id="reset">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div id="sort">
+        <h1>Sort</h1>
+        <div class="content">
+        </div>
+      </div>
+      <div id="result">
+        <h1>Result</h1>
+        <div class="content">
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
